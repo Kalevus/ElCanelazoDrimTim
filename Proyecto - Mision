@@ -42,7 +42,7 @@ for encoding in codificaciones:
 # Mostrar el dataframe
 datos
 
-#---------------------------------------------------------------
+#-------------------------------------------------------------------
 
 # Configuración de pandas
 pd.set_option('display.max_rows', 20)
