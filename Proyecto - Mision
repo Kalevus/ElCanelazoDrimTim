@@ -1,0 +1,139 @@
+%pip install pandas numpy seaborn  chardet
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet 
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
+from sklearn.tree import plot_tree
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+
+# Configuración de pandas
+pd.set_option('display.max_rows', 20)
+pd.set_option('display.max_columns', None)
+
+# Cargar datos con delimitador de punto y coma
+codificaciones = ['windows-1252', 'cp1252', 'latin-1', 'iso-8859-1']
+
+for encoding in codificaciones:
+    try:
+        datos = pd.read_csv(
+            'datos_apartamentos_rent.csv', 
+            encoding=encoding,
+            sep=';',  # ← AQUÍ ESTÁ LA CLAVE: delimitador punto y coma
+            on_bad_lines='skip',
+            engine='python'
+        )
+        print(f"✓ Datos cargados correctamente con encoding={encoding} y sep=';'")
+        print(f"Dimensiones: {datos.shape[0]} filas × {datos.shape[1]} columnas\n")
+        break
+    except Exception as e:
+        print(f"✗ Falló con {encoding}: {e}")
+        continue
+
+# Mostrar el dataframe
+datos
+
+
+# Configuración de pandas
+pd.set_option('display.max_rows', 20)
+pd.set_option('display.max_columns', None)
+
+# Cargar datos con delimitador de punto y coma
+codificaciones = ['windows-1252', 'cp1252', 'latin-1', 'iso-8859-1']
+
+for encoding in codificaciones:
+    try:
+        datos = pd.read_csv(
+            'datos_apartamentos_rent.csv', 
+            encoding=encoding,
+            sep=';',
+            on_bad_lines='skip',
+            engine='python'
+        )
+        print(f"✓ Datos cargados correctamente con encoding={encoding} y sep=';'")
+        print(f"Dimensiones originales: {datos.shape[0]} filas × {datos.shape[1]} columnas\n")
+        break
+    except Exception as e:
+        print(f"✗ Falló con {encoding}: {e}")
+        continue
+
+# Columnas a mantener
+columnas_mantener = [
+    'id', 'category', 'amenities', 'bathrooms', 'bedrooms', 
+    'pets_allowed', 'price', 'price_type', 'square_feet', 
+    'cityname', 'state', 'latitude', 'longitude', 'source'
+]
+
+# Verificar qué columnas existen realmente en el dataset
+columnas_existentes = [col for col in columnas_mantener if col in datos.columns]
+columnas_faltantes = [col for col in columnas_mantener if col not in datos.columns]
+
+if columnas_faltantes:
+    print(f"⚠️ Columnas no encontradas en el dataset: {columnas_faltantes}")
+    print(f"Columnas disponibles: {list(datos.columns)}\n")
+
+# Seleccionar solo las columnas que queremos
+datos = datos[columnas_existentes]
+
+print(f"✓ Columnas seleccionadas: {len(columnas_existentes)}")
+print(f"Dimensiones finales: {datos.shape[0]} filas × {datos.shape[1]} columnas\n")
+print(f"Columnas finales: {list(datos.columns)}\n")
+
+# Mostrar el dataframe
+datos
+
+
+#----------------------------------------------------------------
+# Definir las 5 amenidades específicas
+amenities_especificas = ['Gym', 'Parking', 'Pool', 'Internet Access', 'Elevator']
+
+print("🔨 Dividiendo columna amenities en columnas binarias...\n")
+
+# Crear columnas binarias para cada amenidad
+for amenity in amenities_especificas:
+    col_name = f'has_{amenity.replace(" ", "_")}'
+    datos[col_name] = datos['amenities'].str.contains(amenity, case=False, na=False).astype(int)
+
+# Eliminar la columna original 'amenities'
+datos = datos.drop('amenities', axis=1)
+
+print(f"✓ Se crearon {len(amenities_especificas)} columnas nuevas")
+print(f"✓ Se eliminó la columna 'amenities' original")
+print(f"📊 Dimensiones finales: {datos.shape[0]} filas × {datos.shape[1]} columnas\n")
+
+# Mostrar el dataframe
+datos
+
+#---------------------------------------------------------------------------------
+# Definir las mascotas específicas
+pets_especificos = ['Dogs', 'Cats']
+
+print("🐾 Dividiendo columna pets_allowed en columnas binarias...\n")
+
+# Crear columnas binarias para cada tipo de mascota
+for pet in pets_especificos:
+    col_name = f'allows_{pet}'
+    datos[col_name] = datos['pets_allowed'].str.contains(pet, case=False, na=False).astype(int)
+    count = datos[col_name].sum()
+    percentage = (count / len(datos)) * 100
+    print(f"   ✓ {col_name}: {count} propiedades ({percentage:.1f}%)")
+
+# Eliminar la columna original 'pets_allowed'
+datos = datos.drop('pets_allowed', axis=1)
+
+print(f"\n✓ Columna 'pets_allowed' eliminada")
+print(f"📊 Dimensiones: {datos.shape[0]} filas × {datos.shape[1]} columnas\n")
+
+# Mostrar tabla
+datos
+
+#----------------------------------------------------------------------------------------
