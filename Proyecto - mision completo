@@ -1,1 +1,118 @@
+%pip install pandas numpy seaborn  chardet
 
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet 
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
+from sklearn.tree import plot_tree
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+
+# Configuración de pandas
+pd.set_option('display.max_rows', 20)
+pd.set_option('display.max_columns', None)
+
+# Cargar datos con delimitador de punto y coma
+codificaciones = ['windows-1252', 'cp1252', 'latin-1', 'iso-8859-1']
+
+for encoding in codificaciones:
+    try:
+        datos = pd.read_csv(
+            'datos_apartamentos_rent.csv', 
+            encoding=encoding,
+            sep=';',  # ← AQUÍ ESTÁ LA CLAVE: delimitador punto y coma
+            on_bad_lines='skip',
+            engine='python'
+        )
+        print(f"✓ Datos cargados correctamente con encoding={encoding} y sep=';'")
+        print(f"Dimensiones: {datos.shape[0]} filas × {datos.shape[1]} columnas\n")
+        break
+    except Exception as e:
+        print(f"✗ Falló con {encoding}: {e}")
+        continue
+
+# Mostrar el dataframe
+datos
+
+#---------------------------------------------------------------------------------
+
+# ============================================================================
+# PROCESAMIENTO COMPLETO DE DATOS
+# ============================================================================
+
+print("="*80)
+print("PROCESAMIENTO COMPLETO DE DATOS")
+print("="*80 + "\n")
+
+# 1. AMENITIES
+print("🏋️ Procesando amenities...\n")
+amenities_especificas = ['Gym', 'Parking', 'Pool', 'Internet Access', 'Elevator']
+
+for amenity in amenities_especificas:
+    col_name = f'has_{amenity.replace(" ", "_")}'
+    datos[col_name] = datos['amenities'].str.contains(amenity, case=False, na=False).astype(int)
+
+datos = datos.drop('amenities', axis=1)
+print(f"   ✓ Creadas {len(amenities_especificas)} columnas, 'amenities' eliminada\n")
+
+# 2. PETS ALLOWED
+print("🐾 Procesando pets_allowed...\n")
+pets_especificos = ['Dogs', 'Cats']
+
+for pet in pets_especificos:
+    col_name = f'allows_{pet}'
+    datos[col_name] = datos['pets_allowed'].str.contains(pet, case=False, na=False).astype(int)
+
+datos = datos.drop('pets_allowed', axis=1)
+print(f"   ✓ Creadas {len(pets_especificos)} columnas, 'pets_allowed' eliminada\n")
+
+# 3. ELIMINAR COLUMNA SOURCE
+print("🗑️ Eliminando columna source...\n")
+if 'source' in datos.columns:
+    datos = datos.drop('source', axis=1)
+    print(f"   ✓ Columna 'source' eliminada\n")
+
+# 4. LIMPIEZA DE CATEGORY
+print("📝 Limpiando columna category...\n")
+if 'category' in datos.columns:
+    datos['category'] = datos['category'].str.replace('housing/rent/', '', regex=False)
+    print(f"   ✓ Prefijo 'housing/rent/' eliminado de category\n")
+
+# 5. LIMPIEZA DE NaN/NULL Y CONVERSIÓN A ENTEROS
+print("🧹 Limpiando valores NaN/NULL...\n")
+total_nan_antes = datos.isna().sum().sum()
+print(f"   📊 Valores NaN encontrados: {total_nan_antes}")
+
+# Reemplazar NaN por 0
+datos = datos.fillna(0)
+
+# Convertir columnas numéricas a enteros
+columnas_numericas = ['bathrooms', 'bedrooms', 'price', 'square_feet']
+for col in columnas_numericas:
+    if col in datos.columns:
+        datos[col] = datos[col].astype(int)
+
+print(f"   ✓ Valores NaN reemplazados por 0")
+print(f"   ✓ Columnas numéricas convertidas a enteros\n")
+
+# RESUMEN FINAL
+print("="*80)
+print("RESUMEN FINAL")
+print("="*80)
+print(f"✓ Columnas agregadas: {len(amenities_especificas) + len(pets_especificos)}")
+print(f"✓ Columnas eliminadas: amenities, pets_allowed, source")
+print(f"✓ Valores NaN reemplazados: {total_nan_antes}")
+print(f"✓ Category limpiada: 'housing/rent/' removido")
+print(f"✓ Columnas numéricas sin decimales")
+print(f"📊 Dimensiones finales: {datos.shape[0]} filas × {datos.shape[1]} columnas\n")
+
+# Mostrar tabla
+datos
