@@ -1,0 +1,230 @@
+# ============================================================================
+# ANÁLISIS DE VALORES ATÍPICOS Y VISUALIZACIÓN 3D
+# ============================================================================
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import seaborn as sns
+from scipy import stats
+
+print("="*80)
+print("ANÁLISIS DE VALORES ATÍPICOS")
+print("="*80 + "\n")
+
+# Seleccionar variables numéricas clave para el análisis
+# Usaremos: square_feet, bedrooms, bathrooms como predictoras y price como objetivo
+variables_analisis = ['square_feet', 'bedrooms', 'bathrooms', 'price']
+
+# Verificar que las columnas existan
+variables_disponibles = [col for col in variables_analisis if col in datos.columns]
+print(f"📊 Variables para análisis: {variables_disponibles}\n")
+
+# Crear dataframe solo con variables de interés (sin valores 0 en price)
+df_analisis = datos[variables_disponibles].copy()
+df_analisis = df_analisis[df_analisis['price'] > 0]  # Eliminar precios en 0
+
+print(f"Datos iniciales: {len(df_analisis)} registros\n")
+
+# ============================================================================
+# 1. DETECCIÓN DE OUTLIERS USANDO Z-SCORE
+# ============================================================================
+
+print("🔍 Detectando valores atípicos usando Z-Score (> 3)...\n")
+
+# Calcular Z-score para cada variable
+z_scores = np.abs(stats.zscore(df_analisis))
+
+# Identificar outliers (Z-score > 3)
+outliers_mask = (z_scores > 3).any(axis=1)
+outliers = df_analisis[outliers_mask]
+datos_limpios = df_analisis[~outliers_mask]
+
+print(f"❌ Valores atípicos encontrados: {len(outliers)} ({len(outliers)/len(df_analisis)*100:.2f}%)")
+print(f"✓ Datos limpios restantes: {len(datos_limpios)} ({len(datos_limpios)/len(df_analisis)*100:.2f}%)\n")
+
+# Mostrar estadísticas de los outliers
+if len(outliers) > 0:
+    print("📋 ESTADÍSTICAS DE VALORES ATÍPICOS:")
+    print("="*80)
+    print(outliers.describe())
+    print("\n🔝 Top 10 valores atípicos más extremos:")
+    print(outliers.nlargest(10, 'price')[variables_disponibles])
+
+# ============================================================================
+# 2. DETECCIÓN DE OUTLIERS USANDO IQR (Rango Intercuartílico)
+# ============================================================================
+
+print("\n" + "="*80)
+print("🔍 Detectando valores atípicos usando IQR...\n")
+
+outliers_iqr = pd.DataFrame()
+
+for col in variables_disponibles:
+    Q1 = df_analisis[col].quantile(0.25)
+    Q3 = df_analisis[col].quantile(0.75)
+    IQR = Q3 - Q1
+    
+    limite_inferior = Q1 - 1.5 * IQR
+    limite_superior = Q3 + 1.5 * IQR
+    
+    outliers_col = df_analisis[(df_analisis[col] < limite_inferior) | (df_analisis[col] > limite_superior)]
+    
+    print(f"{col}:")
+    print(f"   Rango normal: [{limite_inferior:.2f}, {limite_superior:.2f}]")
+    print(f"   Outliers: {len(outliers_col)} ({len(outliers_col)/len(df_analisis)*100:.2f}%)\n")
+
+# ============================================================================
+# 3. VISUALIZACIÓN 3D - DISPERSIÓN DE DATOS
+# ============================================================================
+
+print("="*80)
+print("VISUALIZACIÓN 3D")
+print("="*80 + "\n")
+
+# Crear figura con subplots 3D
+fig = plt.figure(figsize=(20, 6))
+
+# Gráfico 1: Todos los datos
+ax1 = fig.add_subplot(131, projection='3d')
+scatter1 = ax1.scatter(df_analisis['square_feet'], 
+                       df_analisis['bedrooms'], 
+                       df_analisis['price'],
+                       c=df_analisis['price'], 
+                       cmap='viridis', 
+                       alpha=0.6,
+                       s=20)
+ax1.set_xlabel('Square Feet', fontsize=10)
+ax1.set_ylabel('Bedrooms', fontsize=10)
+ax1.set_zlabel('Price', fontsize=10)
+ax1.set_title('Todos los Datos', fontsize=12, fontweight='bold')
+plt.colorbar(scatter1, ax=ax1, shrink=0.5, label='Price')
+
+# Gráfico 2: Datos limpios vs Outliers
+ax2 = fig.add_subplot(132, projection='3d')
+ax2.scatter(datos_limpios['square_feet'], 
+           datos_limpios['bedrooms'], 
+           datos_limpios['price'],
+           c='blue', 
+           alpha=0.5, 
+           s=20, 
+           label='Datos normales')
+if len(outliers) > 0:
+    ax2.scatter(outliers['square_feet'], 
+               outliers['bedrooms'], 
+               outliers['price'],
+               c='red', 
+               alpha=0.8, 
+               s=50, 
+               marker='x',
+               label='Outliers')
+ax2.set_xlabel('Square Feet', fontsize=10)
+ax2.set_ylabel('Bedrooms', fontsize=10)
+ax2.set_zlabel('Price', fontsize=10)
+ax2.set_title('Datos Limpios vs Outliers (Z-Score)', fontsize=12, fontweight='bold')
+ax2.legend()
+
+# Gráfico 3: Con plano de regresión
+ax3 = fig.add_subplot(133, projection='3d')
+
+# Crear modelo de regresión simple
+from sklearn.linear_model import LinearRegression
+X = datos_limpios[['square_feet', 'bedrooms']].values
+y = datos_limpios['price'].values
+
+modelo = LinearRegression()
+modelo.fit(X, y)
+
+# Crear malla para el plano de regresión
+x_surf = np.linspace(X[:, 0].min(), X[:, 0].max(), 30)
+y_surf = np.linspace(X[:, 1].min(), X[:, 1].max(), 30)
+x_surf, y_surf = np.meshgrid(x_surf, y_surf)
+z_surf = modelo.predict(np.c_[x_surf.ravel(), y_surf.ravel()]).reshape(x_surf.shape)
+
+# Plotear datos y plano
+ax3.scatter(datos_limpios['square_feet'], 
+           datos_limpios['bedrooms'], 
+           datos_limpios['price'],
+           c='blue', 
+           alpha=0.5, 
+           s=20,
+           label='Datos')
+ax3.plot_surface(x_surf, y_surf, z_surf, alpha=0.3, cmap='coolwarm', label='Plano de regresión')
+ax3.set_xlabel('Square Feet', fontsize=10)
+ax3.set_ylabel('Bedrooms', fontsize=10)
+ax3.set_zlabel('Price', fontsize=10)
+ax3.set_title('Datos con Plano de Regresión', fontsize=12, fontweight='bold')
+
+plt.tight_layout()
+plt.show()
+
+# ============================================================================
+# 4. ANÁLISIS DE DISTANCIA AL PLANO DE REGRESIÓN
+# ============================================================================
+
+print("\n" + "="*80)
+print("ANÁLISIS DE DISTANCIA AL PLANO DE REGRESIÓN")
+print("="*80 + "\n")
+
+# Calcular predicciones y residuales
+y_pred = modelo.predict(X)
+residuales = y - y_pred
+residuales_abs = np.abs(residuales)
+
+# Identificar puntos más alejados del plano
+umbral_residual = np.percentile(residuales_abs, 95)  # Top 5% más alejados
+puntos_alejados = datos_limpios[residuales_abs > umbral_residual].copy()
+puntos_alejados['residual'] = residuales[residuales_abs > umbral_residual]
+
+print(f"🎯 Puntos más alejados del plano (top 5%): {len(puntos_alejados)}")
+print(f"📏 Umbral de distancia: ${umbral_residual:,.2f}\n")
+
+if len(puntos_alejados) > 0:
+    print("📋 Top 10 puntos más alejados del plano de regresión:")
+    print(puntos_alejados.nlargest(10, 'residual')[variables_disponibles + ['residual']])
+
+# ============================================================================
+# 5. BOXPLOTS PARA CADA VARIABLE
+# ============================================================================
+
+print("\n📊 Generando boxplots...\n")
+
+fig, axes = plt.subplots(1, len(variables_disponibles), figsize=(20, 5))
+
+for idx, col in enumerate(variables_disponibles):
+    axes[idx].boxplot(df_analisis[col], vert=True)
+    axes[idx].set_title(f'{col}', fontsize=12, fontweight='bold')
+    axes[idx].set_ylabel('Valor')
+    axes[idx].grid(True, alpha=0.3)
+    
+    # Calcular estadísticas
+    Q1 = df_analisis[col].quantile(0.25)
+    Q3 = df_analisis[col].quantile(0.75)
+    IQR = Q3 - Q1
+    outliers_count = len(df_analisis[(df_analisis[col] < Q1 - 1.5*IQR) | (df_analisis[col] > Q3 + 1.5*IQR)])
+    
+    axes[idx].text(0.5, 0.95, f'Outliers: {outliers_count}', 
+                   transform=axes[idx].transAxes,
+                   verticalalignment='top',
+                   bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+plt.suptitle('Distribución de Variables y Detección de Outliers', fontsize=14, fontweight='bold')
+plt.tight_layout()
+plt.show()
+
+# ============================================================================
+# 6. RESUMEN FINAL
+# ============================================================================
+
+print("\n" + "="*80)
+print("📊 RESUMEN FINAL")
+print("="*80)
+print(f"✓ Datos originales: {len(df_analisis)}")
+print(f"✓ Outliers detectados (Z-Score): {len(outliers)} ({len(outliers)/len(df_analisis)*100:.2f}%)")
+print(f"✓ Datos limpios: {len(datos_limpios)} ({len(datos_limpios)/len(df_analisis)*100:.2f}%)")
+print(f"✓ Puntos alejados del plano: {len(puntos_alejados)}")
+print(f"\n💡 Recomendación: Usar 'datos_limpios' para entrenar el modelo de regresión\n")
+
+# Guardar datos limpios en el dataframe original
+print("💾 ¿Deseas aplicar la limpieza al dataset original? (Esto eliminará los outliers)")
