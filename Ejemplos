@@ -1,0 +1,242 @@
+# ============================================================================
+# VISUALIZACIÓN 2D CON MATPLOTLIB (MÁS ESTABLE)
+# ============================================================================
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+from sklearn.linear_model import LinearRegression
+
+print("="*80)
+print("ANÁLISIS DE VALORES ATÍPICOS - VISUALIZACIÓN 2D")
+print("="*80 + "\n")
+
+# Preparar datos
+variables_analisis = ['square_feet', 'bedrooms', 'bathrooms', 'price']
+variables_disponibles = [col for col in variables_analisis if col in datos.columns]
+
+print(f"📋 Variables disponibles: {variables_disponibles}\n")
+
+df_analisis = datos[variables_disponibles].copy()
+df_analisis = df_analisis[df_analisis['price'] > 0]
+
+print(f"📊 Datos iniciales (price > 0): {len(df_analisis)} registros\n")
+
+# ============================================================================
+# DETECCIÓN DE OUTLIERS CON Z-SCORE
+# ============================================================================
+
+print("🔍 Detectando outliers con Z-Score (umbral = 3)...\n")
+
+z_scores = np.abs(stats.zscore(df_analisis))
+outliers_mask = (z_scores > 3).any(axis=1)
+outliers = df_analisis[outliers_mask]
+datos_limpios = df_analisis[~outliers_mask]
+
+print(f"❌ Outliers detectados: {len(outliers)} ({len(outliers)/len(df_analisis)*100:.2f}%)")
+print(f"✓ Datos limpios: {len(datos_limpios)} ({len(datos_limpios)/len(df_analisis)*100:.2f}%)\n")
+
+# ============================================================================
+# GRÁFICO 1: DISPERSIÓN PRICE VS SQUARE_FEET (TODOS LOS DATOS)
+# ============================================================================
+
+print("📊 Generando gráficos 2D...\n")
+
+fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+fig.suptitle('ANÁLISIS DE VALORES ATÍPICOS - APARTAMENTOS EN RENTA', 
+             fontsize=16, fontweight='bold', y=0.995)
+
+# Subplot 1: Price vs Square Feet - Todos los datos
+ax1 = axes[0, 0]
+scatter1 = ax1.scatter(df_analisis['square_feet'], 
+                       df_analisis['price'],
+                       c=df_analisis['price'],
+                       cmap='viridis',
+                       alpha=0.6,
+                       s=30,
+                       edgecolors='none')
+ax1.set_xlabel('Square Feet', fontsize=11, fontweight='bold')
+ax1.set_ylabel('Price ($)', fontsize=11, fontweight='bold')
+ax1.set_title(f'Dispersión: Price vs Square Feet\nTotal: {len(df_analisis)} registros', 
+              fontsize=12, fontweight='bold')
+ax1.grid(True, alpha=0.3, linestyle='--')
+plt.colorbar(scatter1, ax=ax1, label='Price ($)')
+
+# ============================================================================
+# GRÁFICO 2: DATOS LIMPIOS VS OUTLIERS
+# ============================================================================
+
+ax2 = axes[0, 1]
+ax2.scatter(datos_limpios['square_feet'], 
+           datos_limpios['price'],
+           c='#3498db',
+           alpha=0.5,
+           s=30,
+           edgecolors='none',
+           label=f'Datos normales ({len(datos_limpios)})')
+
+if len(outliers) > 0:
+    ax2.scatter(outliers['square_feet'], 
+               outliers['price'],
+               c='#e74c3c',
+               alpha=0.9,
+               s=100,
+               marker='x',
+               linewidths=2,
+               label=f'Outliers ({len(outliers)})')
+
+ax2.set_xlabel('Square Feet', fontsize=11, fontweight='bold')
+ax2.set_ylabel('Price ($)', fontsize=11, fontweight='bold')
+ax2.set_title('Datos Limpios vs Outliers (Z-Score > 3)', 
+              fontsize=12, fontweight='bold')
+ax2.grid(True, alpha=0.3, linestyle='--')
+ax2.legend(loc='best', framealpha=0.9)
+
+# ============================================================================
+# GRÁFICO 3: REGRESIÓN LINEAL
+# ============================================================================
+
+ax3 = axes[1, 0]
+
+# Modelo de regresión
+X = datos_limpios[['square_feet']].values
+y = datos_limpios['price'].values
+
+modelo = LinearRegression()
+modelo.fit(X, y)
+y_pred = modelo.predict(X)
+r2 = modelo.score(X, y)
+
+# Scatter
+ax3.scatter(datos_limpios['square_feet'], 
+           datos_limpios['price'],
+           c='#3498db',
+           alpha=0.5,
+           s=30,
+           edgecolors='none',
+           label='Datos')
+
+# Línea de regresión
+ax3.plot(datos_limpios['square_feet'], 
+        y_pred,
+        color='#e74c3c',
+        linewidth=2,
+        label=f'Regresión Lineal (R²={r2:.4f})')
+
+ax3.set_xlabel('Square Feet', fontsize=11, fontweight='bold')
+ax3.set_ylabel('Price ($)', fontsize=11, fontweight='bold')
+ax3.set_title(f'Regresión Lineal: Price vs Square Feet\nR² = {r2:.4f}', 
+              fontsize=12, fontweight='bold')
+ax3.grid(True, alpha=0.3, linestyle='--')
+ax3.legend(loc='best', framealpha=0.9)
+
+print(f"   R² del modelo: {r2:.4f}")
+print(f"   Intercepto: ${modelo.intercept_:,.2f}")
+print(f"   Coeficiente: ${modelo.coef_[0]:,.4f}\n")
+
+# ============================================================================
+# GRÁFICO 4: RESIDUALES
+# ============================================================================
+
+ax4 = axes[1, 1]
+
+residuales = y - y_pred
+residuales_abs = np.abs(residuales)
+
+# Identificar puntos alejados
+umbral_residual = np.percentile(residuales_abs, 95)
+puntos_alejados_mask = residuales_abs > umbral_residual
+
+# Puntos normales
+ax4.scatter(datos_limpios['square_feet'][~puntos_alejados_mask],
+           residuales[~puntos_alejados_mask],
+           c='#27ae60',
+           alpha=0.5,
+           s=30,
+           edgecolors='none',
+           label=f'Normales ({(~puntos_alejados_mask).sum()})')
+
+# Puntos alejados
+if puntos_alejados_mask.sum() > 0:
+    ax4.scatter(datos_limpios['square_feet'][puntos_alejados_mask],
+               residuales[puntos_alejados_mask],
+               c='#f39c12',
+               alpha=0.9,
+               s=100,
+               marker='D',
+               edgecolors='darkorange',
+               linewidths=1.5,
+               label=f'Alejados ({puntos_alejados_mask.sum()})')
+
+# Línea en y=0
+ax4.axhline(y=0, color='red', linestyle='--', linewidth=2, alpha=0.7, label='y=0')
+ax4.axhline(y=umbral_residual, color='orange', linestyle=':', linewidth=1.5, alpha=0.7, label=f'Umbral P95')
+ax4.axhline(y=-umbral_residual, color='orange', linestyle=':', linewidth=1.5, alpha=0.7)
+
+ax4.set_xlabel('Square Feet', fontsize=11, fontweight='bold')
+ax4.set_ylabel('Residuales ($)', fontsize=11, fontweight='bold')
+ax4.set_title(f'Análisis de Residuales\nUmbral: ${umbral_residual:,.0f}', 
+              fontsize=12, fontweight='bold')
+ax4.grid(True, alpha=0.3, linestyle='--')
+ax4.legend(loc='best', framealpha=0.9)
+
+print(f"   Umbral residual (P95): ${umbral_residual:,.2f}")
+print(f"   Puntos alejados: {puntos_alejados_mask.sum()} ({puntos_alejados_mask.sum()/len(datos_limpios)*100:.2f}%)\n")
+
+plt.tight_layout()
+plt.show()
+
+# ============================================================================
+# GRÁFICOS ADICIONALES: BOXPLOTS Y DISTRIBUCIONES
+# ============================================================================
+
+print("📊 Generando gráficos adicionales...\n")
+
+fig2, axes2 = plt.subplots(2, 2, figsize=(16, 10))
+fig2.suptitle('DISTRIBUCIÓN Y DETECCIÓN DE OUTLIERS POR VARIABLE', 
+              fontsize=16, fontweight='bold', y=0.995)
+
+variables_plot = ['price', 'square_feet', 'bedrooms', 'bathrooms']
+
+for idx, var in enumerate(variables_plot):
+    if var in df_analisis.columns:
+        ax = axes2[idx // 2, idx % 2]
+        
+        # Boxplot
+        bp = ax.boxplot(df_analisis[var], 
+                        vert=True, 
+                        patch_artist=True,
+                        widths=0.5)
+        
+        # Colorear
+        bp['boxes'][0].set_facecolor('#3498db')
+        bp['boxes'][0].set_alpha(0.7)
+        bp['medians'][0].set_color('red')
+        bp['medians'][0].set_linewidth(2)
+        
+        # Estadísticas
+        Q1 = df_analisis[var].quantile(0.25)
+        Q3 = df_analisis[var].quantile(0.75)
+        IQR = Q3 - Q1
+        outliers_count = len(df_analisis[(df_analisis[var] < Q1 - 1.5*IQR) | 
+                                          (df_analisis[var] > Q3 + 1.5*IQR)])
+        
+        ax.set_ylabel(var.replace('_', ' ').title(), fontsize=11, fontweight='bold')
+        ax.set_title(f'{var.replace("_", " ").title()}\nOutliers: {outliers_count} ({outliers_count/len(df_analisis)*100:.1f}%)', 
+                     fontsize=12, fontweight='bold')
+        ax.grid(True, alpha=0.3, axis='y')
+        
+        # Anotaciones
+        ax.text(1.15, Q1, f'Q1: {Q1:,.0f}', va='center', fontsize=9, color='darkblue')
+        ax.text(1.15, Q3, f'Q3: {Q3:,.0f}', va='center', fontsize=9, color='darkblue')
+
+plt.tight_layout()
+plt.show()
+
+print("="*80)
+print("✅ GRÁFICOS 2D GENERADOS EXITOSAMENTE")
+print("="*80)
+print("💡 Los gráficos se muestran en ventanas de Matplotlib")
+print("💡 Puedes hacer zoom y guardar las imágenes usando la barra de herramientas\n")
